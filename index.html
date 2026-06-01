@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StudyOS — Progress Tracker</title>
+  <style>
+    /* ── TOKENS ─────────────────────────────────────────────── */
+    :root {
+      --bg:        #0b0e13;
+      --surface:   #111520;
+      --surface2:  #161c2a;
+      --surface3:  #1c2336;
+      --border:    #1f2d45;
+      --border2:   #253354;
+      --accent:    #00e5a0;
+      --accent2:   #00b87d;
+      --accent-dim:#003d2a;
+      --warn:      #ff5e5e;
+      --warn-dim:  #3d0f0f;
+      --muted:     #4a5778;
+      --text:      #c8d8f0;
+      --text-dim:  #6a7ea8;
+      --text-bright:#eaf2ff;
+      --font-mono: 'Courier New', Courier, monospace;
+      --font-ui:   Georgia, 'Times New Roman', serif;
+      --radius:    6px;
+      --radius-lg: 10px;
+      --trans:     0.22s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    /* ── RESET ──────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── GRID BACKGROUND ────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,229,160,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,160,0.025) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── LAYOUT ─────────────────────────────────────────────── */
+    #app { position: relative; z-index: 1; max-width: 820px; margin: 0 auto; padding: 24px 16px 80px; }
+
+    /* ── HEADER ─────────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent2);
+      border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .logo-text { line-height: 1.2; }
+    .logo-title {
+      font-family: var(--font-mono);
+      font-size: 18px;
+      font-weight: bold;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+    }
+    .logo-sub { font-size: 10px; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; }
+
+    .header-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; }
+
+    /* ── BUTTONS ─────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 14px;
+      border-radius: var(--radius);
+      border: 1px solid;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all var(--trans);
+      white-space: nowrap;
+      user-select: none;
+    }
+    .btn-primary {
+      background: var(--accent-dim);
+      border-color: var(--accent2);
+      color: var(--accent);
+    }
+    .btn-primary:hover { background: var(--accent2); color: var(--bg); border-color: var(--accent); }
+    .btn-ghost {
+      background: transparent;
+      border-color: var(--border2);
+      color: var(--text-dim);
+    }
+    .btn-ghost:hover { border-color: var(--accent2); color: var(--accent); }
+    .btn-danger {
+      background: transparent;
+      border-color: transparent;
+      color: var(--muted);
+      padding: 4px 7px;
+      font-size: 11px;
+    }
+    .btn-danger:hover { background: var(--warn-dim); color: var(--warn); border-color: var(--warn); }
+    .btn-sm { padding: 5px 10px; font-size: 11px; }
+
+    /* ── OVERALL PROGRESS ───────────────────────────────────── */
+    .overall-card {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius-lg);
+      padding: 18px 20px;
+      margin-bottom: 24px;
+    }
+    .overall-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 10px;
+    }
+    .overall-label { font-size: 11px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+    .overall-pct { font-size: 28px; color: var(--accent); font-weight: bold; line-height: 1; }
+    .overall-stats { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+    /* ── PROGRESS BAR ───────────────────────────────────────── */
+    .prog-track {
+      height: 6px;
+      background: var(--surface3);
+      border-radius: 99px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    .prog-fill {
+      height: 100%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, var(--accent2), var(--accent));
+      transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+      min-width: 0;
+    }
+    .prog-fill.danger { background: linear-gradient(90deg, #ff3d3d, #ff8080); }
+    .prog-fill.warn   { background: linear-gradient(90deg, #f5a623, #ffd280); }
+
+    /* ── SUBJECT LIST ───────────────────────────────────────── */
+    #subjects-list { display: flex; flex-direction: column; gap: 14px; }
+
+    /* ── SUBJECT CARD ───────────────────────────────────────── */
+    .subject-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      transition: border-color var(--trans);
+    }
+    .subject-card:hover { border-color: var(--border2); }
+
+    .subject-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 16px;
+      cursor: pointer;
+      user-select: none;
+      background: var(--surface2);
+      transition: background var(--trans);
+    }
+    .subject-header:hover { background: var(--surface3); }
+
+    .subject-chevron {
+      font-size: 10px; color: var(--muted);
+      transition: transform var(--trans);
+      flex-shrink: 0;
+    }
+    .subject-card.open .subject-chevron { transform: rotate(90deg); }
+
+    .subject-name {
+      flex: 1;
+      font-size: 14px;
+      font-weight: bold;
+      color: var(--text-bright);
+      letter-spacing: 0.03em;
+    }
+    .subject-badge {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 99px;
+      background: var(--accent-dim);
+      color: var(--accent);
+      border: 1px solid var(--accent-dim);
+      white-space: nowrap;
+    }
+    .subject-pct { font-size: 12px; color: var(--accent); font-weight: bold; min-width: 36px; text-align: right; }
+
+    .subject-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.38s cubic-bezier(0.4,0,0.2,1);
+    }
+    .subject-card.open .subject-body { max-height: 9000px; }
+
+    .subject-body-inner { padding: 14px 16px 16px; }
+
+    .subject-prog-row { margin-bottom: 14px; }
+    .subject-prog-info {
+      display: flex; justify-content: space-between;
+      font-size: 11px; color: var(--text-dim); margin-bottom: 4px;
+    }
+
+    .subject-actions {
+      display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;
+    }
+
+    /* ── UNITS ──────────────────────────────────────────────── */
+    .units-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .unit-block {
+      background: var(--surface3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .unit-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 12px;
+      cursor: pointer;
+      user-select: none;
+      transition: background var(--trans);
+    }
+    .unit-header:hover { background: rgba(255,255,255,0.03); }
+
+    .unit-chevron { font-size: 9px; color: var(--muted); transition: transform var(--trans); flex-shrink: 0; }
+    .unit-block.open .unit-chevron { transform: rotate(90deg); }
+
+    .unit-name {
+      flex: 1;
+      font-size: 12px;
+      color: var(--text);
+      letter-spacing: 0.02em;
+    }
+    .unit-badge { font-size: 10px; color: var(--text-dim); }
+
+    .unit-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s cubic-bezier(0.4,0,0.2,1);
+    }
+    .unit-block.open .unit-body { max-height: 4000px; }
+
+    .unit-body-inner { padding: 10px 12px 12px; border-top: 1px solid var(--border); }
+
+    .unit-actions { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+
+    /* ── TOPICS ─────────────────────────────────────────────── */
+    .topics-list { display: flex; flex-direction: column; gap: 4px; }
+
+    .topic-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 8px;
+      border-radius: var(--radius);
+      border: 1px solid transparent;
+      transition: all var(--trans);
+      cursor: default;
+    }
+    .topic-row:hover { background: rgba(0,229,160,0.04); border-color: var(--border); }
+    .topic-row.done { background: rgba(0,229,160,0.05); }
+
+    .topic-check {
+      width: 16px; height: 16px;
+      border: 1.5px solid var(--border2);
+      border-radius: 3px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all var(--trans);
+      font-size: 10px;
+      color: transparent;
+    }
+    .topic-row.done .topic-check {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .topic-check:hover { border-color: var(--accent); }
+
+    .topic-label {
+      flex: 1;
+      font-size: 12px;
+      color: var(--text);
+      transition: color var(--trans);
+      cursor: pointer;
+    }
+    .topic-row.done .topic-label {
+      color: var(--muted);
+      text-decoration: line-through;
+      text-decoration-color: var(--muted);
+    }
+
+    /* ── EMPTY STATES ───────────────────────────────────────── */
+    .empty {
+      text-align: center;
+      padding: 28px 16px;
+      color: var(--muted);
+      font-size: 12px;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+    }
+    .empty-icon { font-size: 24px; margin-bottom: 8px; display: block; }
+
+    /* ── MODAL ──────────────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.72);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      display: flex; align-items: center; justify-content: center;
+      padding: 16px;
+      opacity: 0; pointer-events: none;
+      transition: opacity var(--trans);
+    }
+    .modal-overlay.active { opacity: 1; pointer-events: all; }
+
+    .modal {
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      width: 100%; max-width: 400px;
+      transform: translateY(12px) scale(0.98);
+      transition: transform var(--trans);
+    }
+    .modal-overlay.active .modal { transform: none; }
+
+    .modal-title {
+      font-size: 14px; font-weight: bold;
+      color: var(--text-bright);
+      margin-bottom: 16px;
+      letter-spacing: 0.03em;
+    }
+    .modal input {
+      width: 100%;
+      background: var(--surface3);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-bright);
+      outline: none;
+      transition: border-color var(--trans);
+      margin-bottom: 14px;
+    }
+    .modal input:focus { border-color: var(--accent2); }
+    .modal input::placeholder { color: var(--muted); }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* ── TOAST ──────────────────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--surface2);
+      border: 1px solid var(--accent2);
+      color: var(--accent);
+      padding: 9px 18px;
+      border-radius: 99px;
+      font-size: 12px;
+      pointer-events: none;
+      z-index: 200;
+      opacity: 0;
+      transition: all 0.3s ease;
+      white-space: nowrap;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── FOOTER STRIP ───────────────────────────────────────── */
+    .footer-strip {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: rgba(11,14,19,0.92);
+      backdrop-filter: blur(8px);
+      border-top: 1px solid var(--border);
+      padding: 8px 16px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      z-index: 50;
+      flex-wrap: wrap;
+    }
+    .footer-stat { font-size: 11px; color: var(--muted); }
+    .footer-stat span { color: var(--accent); }
+    .footer-sep { color: var(--border2); }
+
+    /* ── SCROLLBAR ──────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+    /* ── MOBILE ─────────────────────────────────────────────── */
+    @media (max-width: 520px) {
+      .header-actions { width: 100%; }
+      .btn { font-size: 11px; padding: 6px 10px; }
+      .overall-pct { font-size: 22px; }
+      .subject-name { font-size: 13px; }
+    }
+
+    /* ── ANIMATIONS ─────────────────────────────────────────── */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .subject-card { animation: fadeIn 0.3s ease both; }
+
+    @keyframes pulse-once {
+      0%   { box-shadow: 0 0 0 0 rgba(0,229,160,0.4); }
+      70%  { box-shadow: 0 0 0 8px rgba(0,229,160,0); }
+      100% { box-shadow: 0 0 0 0 rgba(0,229,160,0); }
+    }
+    .pulse { animation: pulse-once 0.6s ease; }
+  </style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">📚</div>
+      <div class="logo-text">
+        <div class="logo-title">StudyOS</div>
+        <div class="logo-sub">Progress Tracker v1.0</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-ghost btn-sm" id="btn-import" title="Import JSON">⬆ Import</button>
+      <button class="btn btn-ghost btn-sm" id="btn-export" title="Export JSON">⬇ Export</button>
+      <button class="btn btn-ghost btn-sm" id="btn-reset" title="Reset all data" style="color:var(--warn);border-color:var(--warn-dim)">✕ Reset</button>
+      <button class="btn btn-primary" id="btn-add-subject">+ Add Subject</button>
+    </div>
+  </header>
+
+  <!-- OVERALL PROGRESS -->
+  <div class="overall-card" id="overall-card">
+    <div class="overall-header">
+      <div>
+        <div class="overall-label">Overall Progress</div>
+        <div class="overall-stats" id="overall-stats">0 of 0 topics complete</div>
+      </div>
+      <div class="overall-pct" id="overall-pct">0%</div>
+    </div>
+    <div class="prog-track">
+      <div class="prog-fill" id="overall-bar" style="width:0%"></div>
+    </div>
+  </div>
+
+  <!-- SUBJECTS LIST -->
+  <div id="subjects-list"></div>
+
+  <!-- EMPTY STATE (shown when no subjects) -->
+  <div id="empty-state" class="empty" style="display:none">
+    <span class="empty-icon">🗂</span>
+    No subjects yet. Hit <strong style="color:var(--accent)">+ Add Subject</strong> to begin.
+  </div>
+
+</div><!-- #app -->
+
+<!-- FOOTER STRIP -->
+<div class="footer-strip">
+  <div class="footer-stat">Subjects: <span id="fs-subjects">0</span></div>
+  <div class="footer-sep">·</div>
+  <div class="footer-stat">Units: <span id="fs-units">0</span></div>
+  <div class="footer-sep">·</div>
+  <div class="footer-stat">Topics: <span id="fs-topics">0</span></div>
+  <div class="footer-sep">·</div>
+  <div class="footer-stat">Done: <span id="fs-done">0</span></div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" id="modal">
+    <div class="modal-title" id="modal-title">Add Subject</div>
+    <input type="text" id="modal-input" placeholder="Enter name…" autocomplete="off" spellcheck="false" />
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-sm" id="modal-cancel">Cancel</button>
+      <button class="btn btn-primary btn-sm" id="modal-ok">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- HIDDEN FILE INPUT -->
+<input type="file" id="file-import" accept=".json" style="display:none" />
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   StudyOS — Study Progress Tracker
+   Pure vanilla JS, localStorage persistence, zero dependencies.
+   ═══════════════════════════════════════════════════════════════ */
+
+// ── STATE ────────────────────────────────────────────────────────
+const KEY = 'studyos_data_v1';
+let data = [];  // Array of subjects
+
+// ── UTILS ────────────────────────────────────────────────────────
+const uid = () => Math.random().toString(36).slice(2,10);
+
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(data)); }
+  catch(e) { toast('⚠ Storage full!', true); }
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    data = raw ? JSON.parse(raw) : [];
+  } catch(e) { data = []; }
+}
+
+function toast(msg, warn = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.borderColor = warn ? 'var(--warn)' : 'var(--accent2)';
+  el.style.color        = warn ? 'var(--warn)' : 'var(--accent)';
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// ── STATS HELPERS ─────────────────────────────────────────────────
+function subjectStats(subject) {
+  let total = 0, done = 0;
+  (subject.units || []).forEach(u =>
+    (u.topics || []).forEach(t => { total++; if(t.done) done++; })
+  );
+  return { total, done, pct: total ? Math.round(done/total*100) : 0 };
+}
+
+function globalStats() {
+  let total = 0, done = 0, units = 0;
+  data.forEach(s => {
+    (s.units || []).forEach(u => {
+      units++;
+      (u.topics || []).forEach(t => { total++; if(t.done) done++; });
+    });
+  });
+  return { subjects: data.length, units, total, done,
+           pct: total ? Math.round(done/total*100) : 0 };
+}
+
+function barClass(pct) {
+  if(pct < 30) return 'danger';
+  if(pct < 60) return 'warn';
+  return '';
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────
+let _modalResolve = null;
+
+function openModal(title, placeholder = 'Enter name…') {
+  return new Promise(resolve => {
+    _modalResolve = resolve;
+    document.getElementById('modal-title').textContent = title;
+    const inp = document.getElementById('modal-input');
+    inp.placeholder = placeholder;
+    inp.value = '';
+    document.getElementById('modal-overlay').classList.add('active');
+    setTimeout(() => inp.focus(), 80);
+  });
+}
+
+function closeModal(value) {
+  document.getElementById('modal-overlay').classList.remove('active');
+  if(_modalResolve) { _modalResolve(value || null); _modalResolve = null; }
+}
+
+document.getElementById('modal-cancel').addEventListener('click', () => closeModal(null));
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if(e.target === document.getElementById('modal-overlay')) closeModal(null);
+});
+document.getElementById('modal-ok').addEventListener('click', () => {
+  const v = document.getElementById('modal-input').value.trim();
+  if(v) closeModal(v); else document.getElementById('modal-input').classList.add('pulse');
+});
+document.getElementById('modal-input').addEventListener('keydown', e => {
+  if(e.key === 'Enter') { const v = e.target.value.trim(); if(v) closeModal(v); }
+  if(e.key === 'Escape') closeModal(null);
+});
+
+// ── RENDER ────────────────────────────────────────────────────────
+function renderAll() {
+  const list = document.getElementById('subjects-list');
+  const empty = document.getElementById('empty-state');
+
+  // Clear and rebuild
+  list.innerHTML = '';
+
+  if(!data.length) {
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    data.forEach((subject, si) => {
+      list.appendChild(buildSubjectCard(subject, si));
+    });
+  }
+
+  updateGlobalBar();
+}
+
+function buildSubjectCard(subject, si) {
+  const stats = subjectStats(subject);
+  const card = document.createElement('div');
+  card.className = 'subject-card' + (subject.open !== false ? ' open' : '');
+  card.dataset.si = si;
+
+  card.innerHTML = `
+    <div class="subject-header" data-toggle="subject">
+      <span class="subject-chevron">▶</span>
+      <span class="subject-name">${esc(subject.name)}</span>
+      <span class="subject-badge">${stats.done}/${stats.total}</span>
+      <span class="subject-pct">${stats.pct}%</span>
+      <button class="btn btn-danger" data-action="del-subject" data-si="${si}" title="Delete subject">✕</button>
+    </div>
+    <div class="subject-body">
+      <div class="subject-body-inner">
+        <div class="subject-prog-row">
+          <div class="subject-prog-info">
+            <span>${stats.done} of ${stats.total} topics done</span>
+            <span>${stats.pct}%</span>
+          </div>
+          <div class="prog-track">
+            <div class="prog-fill ${barClass(stats.pct)}" style="width:${stats.pct}%"></div>
+          </div>
+        </div>
+        <div class="subject-actions">
+          <button class="btn btn-ghost btn-sm" data-action="add-unit" data-si="${si}">+ Add Unit</button>
+        </div>
+        <div class="units-list" id="units-${si}">
+          ${subject.units && subject.units.length
+            ? subject.units.map((u, ui) => buildUnitHTML(u, si, ui)).join('')
+            : '<div class="empty"><span class="empty-icon">📦</span>No units yet.</div>'
+          }
+        </div>
+      </div>
+    </div>
+  `;
+  return card;
+}
+
+function buildUnitHTML(unit, si, ui) {
+  const done  = (unit.topics||[]).filter(t=>t.done).length;
+  const total = (unit.topics||[]).length;
+  return `
+  <div class="unit-block ${unit.open !== false ? 'open' : ''}" data-si="${si}" data-ui="${ui}">
+    <div class="unit-header" data-toggle="unit">
+      <span class="unit-chevron">▶</span>
+      <span class="unit-name">${esc(unit.name)}</span>
+      <span class="unit-badge">${done}/${total}</span>
+      <button class="btn btn-danger" data-action="del-unit" data-si="${si}" data-ui="${ui}" title="Delete unit">✕</button>
+    </div>
+    <div class="unit-body">
+      <div class="unit-body-inner">
+        <div class="unit-actions">
+          <button class="btn btn-ghost btn-sm" data-action="add-topic" data-si="${si}" data-ui="${ui}">+ Add Topic</button>
+        </div>
+        <div class="topics-list">
+          ${(unit.topics||[]).length
+            ? (unit.topics||[]).map((t,ti) => buildTopicHTML(t, si, ui, ti)).join('')
+            : '<div class="empty" style="padding:12px 8px;font-size:11px">No topics yet.</div>'
+          }
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildTopicHTML(topic, si, ui, ti) {
+  return `
+  <div class="topic-row ${topic.done ? 'done' : ''}" data-si="${si}" data-ui="${ui}" data-ti="${ti}">
+    <div class="topic-check" data-action="toggle-topic" data-si="${si}" data-ui="${ui}" data-ti="${ti}">
+      ${topic.done ? '✔' : ''}
+    </div>
+    <span class="topic-label" data-action="toggle-topic" data-si="${si}" data-ui="${ui}" data-ti="${ti}">${esc(topic.name)}</span>
+    <button class="btn btn-danger" data-action="del-topic" data-si="${si}" data-ui="${ui}" data-ti="${ti}" title="Delete topic">✕</button>
+  </div>`;
+}
+
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── GLOBAL BAR ───────────────────────────────────────────────────
+function updateGlobalBar() {
+  const gs = globalStats();
+  document.getElementById('overall-pct').textContent = gs.pct + '%';
+  document.getElementById('overall-stats').textContent = `${gs.done} of ${gs.total} topics complete`;
+  const bar = document.getElementById('overall-bar');
+  bar.style.width = gs.pct + '%';
+  bar.className = 'prog-fill ' + barClass(gs.pct);
+
+  document.getElementById('fs-subjects').textContent = gs.subjects;
+  document.getElementById('fs-units').textContent    = gs.units;
+  document.getElementById('fs-topics').textContent   = gs.total;
+  document.getElementById('fs-done').textContent     = gs.done;
+}
+
+// ── EVENT DELEGATION ─────────────────────────────────────────────
+document.getElementById('subjects-list').addEventListener('click', async e => {
+  const el  = e.target;
+  const act = el.dataset.action;
+  const si  = +el.dataset.si;
+  const ui  = +el.dataset.ui;
+  const ti  = +el.dataset.ti;
+
+  // Prevent toggle when clicking buttons inside header
+  if(act) e.stopPropagation();
+
+  // ── SUBJECT TOGGLE
+  const subjectHeader = el.closest('[data-toggle="subject"]');
+  if(subjectHeader && !act) {
+    const card = subjectHeader.closest('.subject-card');
+    const idx  = +card.dataset.si;
+    data[idx].open = !card.classList.contains('open');
+    card.classList.toggle('open');
+    save(); return;
+  }
+
+  // ── UNIT TOGGLE
+  const unitHeader = el.closest('[data-toggle="unit"]');
+  if(unitHeader && !act) {
+    const block = unitHeader.closest('.unit-block');
+    const _si   = +block.dataset.si;
+    const _ui   = +block.dataset.ui;
+    data[_si].units[_ui].open = !block.classList.contains('open');
+    block.classList.toggle('open');
+    save(); return;
+  }
+
+  if(!act) return;
+
+  // ── DEL SUBJECT
+  if(act === 'del-subject') {
+    if(!confirm(`Delete subject "${data[si].name}" and all its contents?`)) return;
+    data.splice(si, 1);
+    save(); renderAll();
+    toast('Subject deleted.');
+    return;
+  }
+
+  // ── ADD UNIT
+  if(act === 'add-unit') {
+    const name = await openModal('Add Unit', 'e.g. Unit 1, Chapter 3…');
+    if(!name) return;
+    if(!data[si].units) data[si].units = [];
+    data[si].units.push({ id: uid(), name, open: true, topics: [] });
+    save(); renderAll();
+    toast('Unit added ✔');
+    return;
+  }
+
+  // ── DEL UNIT
+  if(act === 'del-unit') {
+    const uname = data[si].units[ui].name;
+    if(!confirm(`Delete unit "${uname}" and all its topics?`)) return;
+    data[si].units.splice(ui, 1);
+    save(); renderAll();
+    toast('Unit deleted.');
+    return;
+  }
+
+  // ── ADD TOPIC
+  if(act === 'add-topic') {
+    const name = await openModal('Add Topic', 'e.g. Fourier Transform, BJT biasing…');
+    if(!name) return;
+    if(!data[si].units[ui].topics) data[si].units[ui].topics = [];
+    data[si].units[ui].topics.push({ id: uid(), name, done: false });
+    save(); renderAll();
+    toast('Topic added ✔');
+    return;
+  }
+
+  // ── DEL TOPIC
+  if(act === 'del-topic') {
+    data[si].units[ui].topics.splice(ti, 1);
+    save(); renderAll();
+    toast('Topic removed.');
+    return;
+  }
+
+  // ── TOGGLE TOPIC
+  if(act === 'toggle-topic') {
+    const topic = data[si].units[ui].topics[ti];
+    topic.done = !topic.done;
+    save(); renderAll();
+    // small feedback
+    const msg = topic.done ? '✔ Marked complete!' : '○ Marked incomplete';
+    toast(msg);
+    return;
+  }
+});
+
+// ── ADD SUBJECT ───────────────────────────────────────────────────
+document.getElementById('btn-add-subject').addEventListener('click', async () => {
+  const name = await openModal('Add Subject', 'e.g. DSP, DCS, MPMC…');
+  if(!name) return;
+  data.push({ id: uid(), name, open: true, units: [] });
+  save(); renderAll();
+  toast('Subject added ✔');
+});
+
+// ── EXPORT ────────────────────────────────────────────────────────
+document.getElementById('btn-export').addEventListener('click', () => {
+  if(!data.length) { toast('Nothing to export yet.', true); return; }
+  const blob = new Blob([JSON.stringify({ version: 1, exported: new Date().toISOString(), data }, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `studyos_backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Exported ✔');
+});
+
+// ── IMPORT ────────────────────────────────────────────────────────
+document.getElementById('btn-import').addEventListener('click', () => {
+  document.getElementById('file-import').click();
+});
+document.getElementById('file-import').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = evt => {
+    try {
+      const parsed = JSON.parse(evt.target.result);
+      const imported = parsed.data || parsed; // support raw array too
+      if(!Array.isArray(imported)) throw new Error('Invalid format');
+      if(!confirm(`This will replace all current data with ${imported.length} subject(s). Continue?`)) return;
+      data = imported;
+      save(); renderAll();
+      toast(`Imported ${data.length} subject(s) ✔`);
+    } catch(err) {
+      toast('⚠ Invalid JSON file.', true);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = ''; // reset input
+});
+
+// ── RESET ─────────────────────────────────────────────────────────
+document.getElementById('btn-reset').addEventListener('click', () => {
+  if(!confirm('⚠ Reset ALL data? This cannot be undone.')) return;
+  data = [];
+  localStorage.removeItem(KEY);
+  renderAll();
+  toast('All data cleared.');
+});
+
+// ── BOOT ──────────────────────────────────────────────────────────
+load();
+renderAll();
+</script>
+</body>
+</html>
