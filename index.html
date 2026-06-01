@@ -258,7 +258,8 @@
     .unit-name {
       flex: 1;
       font-size: 12px;
-      color: var(--text);
+      font-weight: bold;
+      color: var(--text-bright);
       letter-spacing: 0.02em;
     }
     .unit-badge { font-size: 10px; color: var(--text-dim); }
@@ -309,7 +310,8 @@
     .topic-label {
       flex: 1;
       font-size: 12px;
-      color: var(--text);
+      font-weight: 600;
+      color: var(--text-bright);
       transition: color var(--trans);
       cursor: pointer;
     }
@@ -375,6 +377,24 @@
     }
     .modal input:focus { border-color: var(--accent2); }
     .modal input::placeholder { color: var(--muted); }
+    .modal textarea {
+      width: 100%;
+      background: var(--surface3);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-bright);
+      outline: none;
+      transition: border-color var(--trans);
+      margin-bottom: 6px;
+      resize: vertical;
+      min-height: 80px;
+      line-height: 1.5;
+    }
+    .modal textarea:focus { border-color: var(--accent2); }
+    .modal textarea::placeholder { color: var(--muted); }
     .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
     /* ── TOAST ──────────────────────────────────────────────── */
@@ -500,6 +520,11 @@
   <div class="modal" id="modal">
     <div class="modal-title" id="modal-title">Add Subject</div>
     <input type="text" id="modal-input" placeholder="Enter name…" autocomplete="off" spellcheck="false" />
+    <div id="modal-topics-wrap" style="display:none">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;letter-spacing:0.05em;">CHAPTERS / TOPICS <span style="color:var(--text-dim);font-size:10px;">(separate with commas)</span></div>
+      <textarea id="modal-topics" placeholder="e.g. Sequences, Sampling theorem, Aliasing, Nyquist rate…" autocomplete="off" spellcheck="false" rows="4"></textarea>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;">Each comma-separated item becomes a chapter. Leave blank to add topics later.</div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-ghost btn-sm" id="modal-cancel">Cancel</button>
       <button class="btn btn-primary btn-sm" id="modal-ok">Add</button>
@@ -578,13 +603,22 @@ function barClass(pct) {
 // ── MODAL ─────────────────────────────────────────────────────────
 let _modalResolve = null;
 
-function openModal(title, placeholder = 'Enter name…') {
+function openModal(title, placeholder = 'Enter name…', showTopics = false) {
   return new Promise(resolve => {
     _modalResolve = resolve;
     document.getElementById('modal-title').textContent = title;
     const inp = document.getElementById('modal-input');
     inp.placeholder = placeholder;
     inp.value = '';
+    const wrap = document.getElementById('modal-topics-wrap');
+    const ta   = document.getElementById('modal-topics');
+    if(showTopics) {
+      wrap.style.display = 'block';
+      ta.value = '';
+    } else {
+      wrap.style.display = 'none';
+      ta.value = '';
+    }
     document.getElementById('modal-overlay').classList.add('active');
     setTimeout(() => inp.focus(), 80);
   });
@@ -601,10 +635,31 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
 });
 document.getElementById('modal-ok').addEventListener('click', () => {
   const v = document.getElementById('modal-input').value.trim();
-  if(v) closeModal(v); else document.getElementById('modal-input').classList.add('pulse');
+  if(v) {
+    const wrap = document.getElementById('modal-topics-wrap');
+    if(wrap.style.display !== 'none') {
+      const topics = document.getElementById('modal-topics').value.trim();
+      closeModal({ name: v, topics });
+    } else {
+      closeModal(v);
+    }
+  } else {
+    document.getElementById('modal-input').classList.add('pulse');
+  }
 });
 document.getElementById('modal-input').addEventListener('keydown', e => {
-  if(e.key === 'Enter') { const v = e.target.value.trim(); if(v) closeModal(v); }
+  if(e.key === 'Enter') {
+    const v = e.target.value.trim();
+    if(v) {
+      const wrap = document.getElementById('modal-topics-wrap');
+      if(wrap.style.display !== 'none') {
+        // Move focus to textarea instead of submitting
+        document.getElementById('modal-topics').focus();
+      } else {
+        closeModal(v);
+      }
+    }
+  }
   if(e.key === 'Escape') closeModal(null);
 });
 
@@ -770,12 +825,17 @@ document.getElementById('subjects-list').addEventListener('click', async e => {
 
   // ── ADD UNIT
   if(act === 'add-unit') {
-    const name = await openModal('Add Unit', 'e.g. Unit 1, Chapter 3…');
-    if(!name) return;
+    const result = await openModal('Add Unit', 'e.g. Unit 1, Chapter 3…', true);
+    if(!result) return;
+    const name   = typeof result === 'object' ? result.name : result;
+    const rawTopics = typeof result === 'object' ? result.topics : '';
+    const topics = rawTopics
+      ? rawTopics.split(',').map(s => s.trim()).filter(Boolean).map(t => ({ id: uid(), name: t, done: false }))
+      : [];
     if(!data[si].units) data[si].units = [];
-    data[si].units.push({ id: uid(), name, open: true, topics: [] });
+    data[si].units.push({ id: uid(), name, open: true, topics });
     save(); renderAll();
-    toast('Unit added ✔');
+    toast(topics.length ? `Unit added with ${topics.length} chapter(s) ✔` : 'Unit added ✔');
     return;
   }
 
